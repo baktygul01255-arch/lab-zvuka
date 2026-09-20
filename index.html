@@ -312,9 +312,9 @@ body:not([data-level="1"]) [data-lv="1"]{display:none}
 .fb{border-left:3px solid var(--accent);padding:4px 0 4px 14px;display:flex;flex-direction:column;gap:6px}
 .fb h3{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2);font-weight:500}
 .fb-t{white-space:pre-wrap;overflow-wrap:anywhere}
-dialog#wkDlg{border:1px solid var(--line);border-radius:14px;padding:0;background:var(--surface);color:var(--ink);width:min(860px,calc(100vw - 32px));max-height:calc(100% - 32px);margin:auto}
-dialog#wkDlg[open]{display:flex;flex-direction:column;gap:14px;padding:18px}
-dialog#wkDlg::backdrop{background:rgba(5,12,15,.6)}
+dialog#wkDlg,dialog#micDlg{border:1px solid var(--line);border-radius:14px;padding:0;background:var(--surface);color:var(--ink);width:min(860px,calc(100vw - 32px));max-height:calc(100% - 32px);margin:auto}
+dialog#wkDlg[open],dialog#micDlg[open]{display:flex;flex-direction:column;gap:14px;padding:18px}
+dialog#wkDlg::backdrop,dialog#micDlg::backdrop{background:rgba(5,12,15,.6)}
 .dlg-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
 .dlg-head h2{font-size:22px;overflow-wrap:anywhere}
 .dlg-body{overflow:auto;min-height:160px;display:flex;flex-direction:column;gap:14px;flex:1}
@@ -343,6 +343,25 @@ dialog#wkDlg::backdrop{background:rgba(5,12,15,.6)}
 .cloud-st{cursor:pointer}
 #loginBox .seg{justify-self:start}
 .dlg-foot{gap:8px;flex-wrap:wrap}
+
+/* ---- микрофон: снимки и алгоритм анализа ---- */
+.mic-nm{display:flex;align-items:center;gap:10px}
+.mthumb{width:64px;height:44px;padding:0;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--sunk);cursor:pointer;flex:none}
+.mthumb img{display:block;width:100%;height:100%;object-fit:cover}
+.mthumb:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#micDlgImg{display:block;width:100%;height:auto;border-radius:8px;border:1px solid var(--line)}
+.algo{list-style:none;margin:0;padding:0;display:grid;gap:12px;counter-reset:al}
+.algo li{counter-increment:al;position:relative;padding:14px 16px 14px 54px;border:1px solid var(--line);border-radius:12px;background:var(--surface);display:grid;gap:6px}
+.algo li::before{content:counter(al);position:absolute;left:14px;top:14px;width:28px;height:28px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font:600 14px var(--f-mono)}
+.algo h3{margin:0;font-size:16px}
+.algo p{margin:0}
+.al-r{font-weight:500;color:var(--ink)}
+.al-r:first-of-type{padding-top:4px}
+.cmp-row{display:grid;grid-template-columns:52px 1fr 44px;align-items:center;gap:10px;font-size:13px}
+.cmp-row output{text-align:right;font-family:var(--f-mono);color:var(--ink2)}
+.cmp-bar{position:relative;height:10px;border-radius:5px;background:var(--sunk)}
+.cmp-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--accent)}
+.cmp-bar b{position:absolute;top:-4px;bottom:-4px;width:3px;margin-left:-1px;border-radius:2px;background:var(--amber)}
 
 </style></head><body>
 <div class="app">
@@ -638,13 +657,31 @@ dialog#wkDlg::backdrop{background:rgba(5,12,15,.6)}
         <div class="stack">
           <div class="scope"><span class="cap">ОСЦИЛЛОГРАММА</span><canvas id="micWave" style="height:170px" role="img" aria-label="Осциллограмма сигнала микрофона"></canvas></div>
           <div class="scope"><span class="cap">СПЕКТР 0–4000 ГЦ</span><canvas id="micSpec" style="height:230px" role="img" aria-label="Спектр сигнала микрофона"></canvas></div>
+          <div class="scope"><span class="cap">СПЕКТРОГРАММА 0–4000 ГЦ · время →</span><canvas id="micGram" style="height:200px" role="img" aria-label="Спектрограмма сигнала микрофона: время по горизонтали, частота по вертикали"></canvas></div>
         </div>
       </div>
+      <div class="sec" id="algoSec">
+        <div class="sec-head"><h2>Алгоритм анализа звука</h2><p>Шесть шагов: как по осциллограмме, спектру и спектрограмме понять, что за звук перед тобой. Результаты шагов приложение считает само, а вывод в шаге 6 проверь и запиши своими словами.</p></div>
+        <div class="row"><div class="field" style="flex:1 1 260px"><label for="algoSrc">Что разбираем</label><select id="algoSrc"></select></div></div>
+        <p class="hint" id="algoNote"></p>
+        <ol class="algo" id="algoList"></ol>
+        <div class="panel" id="algoCmp" hidden>
+          <h3>Твоё измерение и образец</h3>
+          <div class="stack" id="algoCmpRows" style="gap:6px"></div>
+          <p class="hint" id="algoLegend"></p>
+        </div>
+      </div>
+
       <div class="sec">
-        <div class="sec-head"><h2>Мои спектры инструментов</h2><p>Каждая запись — собственное измерение. Нажми «В синтезатор», чтобы услышать тембр по своим данным.</p></div>
+        <div class="sec-head"><h2>Мои спектры инструментов</h2><p>Каждая запись — собственное измерение со снимком осциллограммы, спектра и спектрограммы. Нажми «Разбор», чтобы пройти алгоритм, или «В синтезатор», чтобы услышать тембр по своим данным.</p></div>
         <div class="tablewrap"><table id="micTable"><thead><tr><th>Инструмент</th><th class="num">f₀, Гц</th><th>Нота</th><th class="num">Гармоник > 10 %</th><th class="num">Нечётные, %</th><th></th></tr></thead><tbody></tbody></table></div>
         <p class="hint">Нет микрофона или браузер его не разрешает? Возьми приложение phyphox или SpectrumLab, снимай спектр там и вноси частоты в таблицы опытов вручную.</p>
       </div>
+      <dialog id="micDlg" aria-labelledby="micDlgT">
+        <div class="dlg-head"><div><p class="eyebrow" id="micDlgSub" data-notr></p><h2 id="micDlgT" data-notr></h2></div><button class="btn ghost sm" type="button" id="micDlgX" aria-label="Закрыть">×</button></div>
+        <div class="dlg-body"><img id="micDlgImg" alt="Осциллограмма, спектр и спектрограмма измерения"></div>
+        <div class="dlg-foot"><button class="btn ghost sm" type="button" id="micDlgDl">Скачать снимок</button></div>
+      </dialog>
     </section>
 
     <!-- ===================== ЖУРНАЛ ===================== -->
@@ -960,7 +997,7 @@ const DEFAULT = {
     { id: 'exj2', date: todayISO(), type: 'Проблема', text: 'ПРИМЕР. Анализатор показывает то 259, то 262 Гц для одной ноты. Надо сделать не меньше трёх замеров и взять среднее.', ex: true }
   ],
   sources: [
-    { id: 'exsrc1', type: 'book', author: 'Перышкин А. В., Гутник Е. М.', title: 'Физика. 9 класс', pub: 'Дрофа', year: '', url: '', verified: false, ex: true },
+    { id: 'exsrc1', type: 'book', author: 'Башарұлы Р., Шүйіншина Ш., Сейфоллина К.', title: 'Физика. 9 класс', pub: 'Атамұра', year: '2019', url: '', verified: false, ex: true },
     { id: 'exsrc2', type: 'web', author: '', title: 'PhET Interactive Simulations: «Волна на струне» и «Звуковые волны»', pub: 'Университет Колорадо в Боулдере', year: '', url: 'https://phet.colorado.edu', verified: false, ex: true },
     { id: 'exsrc3', type: 'book', author: 'Ландсберг Г. С.', title: 'Элементарный учебник физики. Т. 3: Колебания и волны. Оптика. Атомная и ядерная физика', pub: 'Физматлит', year: '', url: '', verified: false, ex: true },
     { id: 'exsrc4', type: 'app', author: '', title: 'phyphox — физическая лаборатория в смартфоне', pub: 'RWTH Aachen University', year: '', url: 'https://phyphox.org', verified: false, ex: true }
@@ -978,8 +1015,13 @@ function deepMerge(base, add) {
   for (const k of Object.keys(add)) out[k] = (base && typeof base[k] === 'object' && !Array.isArray(base[k]) && base[k] !== null) ? deepMerge(base[k], add[k]) : add[k];
   return out;
 }
+/* сохранённые проекты: пример источника со старым учебником заменяется на учебник Р. Башарұлы и др. */
+function migrateSources(o) {
+  if (o && Array.isArray(o.sources)) o.sources = o.sources.map(x => x && x.id === 'exsrc1' && /Перышкин/.test(x.author || '') ? structuredClone(DEFAULT.sources[0]) : x);
+  return o;
+}
 let S = structuredClone(DEFAULT);
-try { const raw = localStorage.getItem(KEY); if (raw) S = deepMerge(structuredClone(DEFAULT), JSON.parse(raw)); } catch (e) { /* хранилище недоступно */ }
+try { const raw = localStorage.getItem(KEY); if (raw) S = migrateSources(deepMerge(structuredClone(DEFAULT), JSON.parse(raw))); } catch (e) { /* хранилище недоступно */ }
 let saveT = 0;
 function save() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { } }, 250); }
 const listeners = [];
@@ -2056,7 +2098,70 @@ const KK = {
 "PIN: от 4 до 16 символов, без пробелов.": "PIN: 4-тен 16 таңбаға дейін, бос орынсыз.",
 "Неверный ключ учителя.": "Мұғалім кілті дұрыс емес.",
 "Ключ учителя ещё не задан в Apps Script.": "Мұғалім кілті Apps Script-те әлі қойылмаған.",
-"Не удалось связаться с облаком. Проверь интернет и адрес в config.js.": "Бұлтпен байланыс орнату мүмкін болмады. Интернетті және config.js-тегі мекенжайды тексер."
+"Не удалось связаться с облаком. Проверь интернет и адрес в config.js.": "Бұлтпен байланыс орнату мүмкін болмады. Интернетті және config.js-тегі мекенжайды тексер.",
+"Башарұлы Р., Шүйіншина Ш., Сейфоллина К.": "Башарұлы Р., Шүйіншина Ш., Сейфоллина К.",
+"Атамұра": "Атамұра",
+"Гц": "Гц",
+"мс": "мс",
+"СПЕКТРОГРАММА 0–4000 ГЦ · время →": "СПЕКТРОГРАММА 0–4000 ГЦ · уақыт →",
+"СПЕКТРОГРАММА 0–4000 ГЦ": "СПЕКТРОГРАММА 0–4000 ГЦ",
+"Спектрограмма сигнала микрофона: время по горизонтали, частота по вертикали": "Микрофон сигналының спектрограммасы: көлденең — уақыт, тік — жиілік",
+"Жду звук…": "Дыбысты күтіп тұрмын…",
+"Алгоритм анализа звука": "Дыбысты талдау алгоритмі",
+"Шесть шагов: как по осциллограмме, спектру и спектрограмме понять, что за звук перед тобой. Результаты шагов приложение считает само, а вывод в шаге 6 проверь и запиши своими словами.": "Алты қадам: осциллограмма, спектр және спектрограмма бойынша алдыңдағы дыбыстың не екенін қалай түсінуге болады. Қадамдардың нәтижесін қолданба өзі есептейді, ал 6-қадамдағы қорытындыны тексеріп, өз сөзіңмен жаз.",
+"Что разбираем": "Нені талдаймыз",
+"Текущий звук с микрофона": "Микрофон қазір естіп тұрған дыбыс",
+"Включи микрофон и сыграй ноту или выбери сохранённую запись. Ниже приложение подставит результаты шагов.": "Микрофонды қосып, нота ойна немесе сақталған жазбаны таңда. Төменде қолданба қадамдардың нәтижелерін қояды.",
+"Микрофон молчит, поэтому показана последняя сохранённая запись.": "Микрофон үнсіз, сондықтан соңғы сақталған жазба көрсетілген.",
+"Разбирается звук, который слышит микрофон прямо сейчас.": "Микрофон дәл қазір естіп тұрған дыбыс талданып жатыр.",
+"Разбирается сохранённая запись.": "Сақталған жазба талданып жатыр.",
+"Твоё измерение и образец": "Сенің өлшемің және үлгі",
+"Показать снимок": "Суретті көрсету",
+"Скачать снимок": "Суретті жүктеп алу",
+"Осциллограмма, спектр и спектрограмма измерения": "Өлшемнің осциллограммасы, спектрі және спектрограммасы",
+"Разбор": "Талдау",
+"Каждая запись — собственное измерение со снимком осциллограммы, спектра и спектрограммы. Нажми «Разбор», чтобы пройти алгоритм, или «В синтезатор», чтобы услышать тембр по своим данным.": "Әр жазба — өз өлшемің, осциллограмма, спектр және спектрограмма суретімен. Алгоритмнен өту үшін «Талдау» түймесін, ал өз деректеріңмен тембрді есту үшін «Синтезаторға» түймесін бас.",
+"Снимок добавлен в материалы работы.": "Сурет жұмыстың материалдарына қосылды.",
+"Снимок не удалось сохранить: память браузера заполнена.": "Суретті сақтау мүмкін болмады: браузер жады толы.",
+"Осциллограмма и спектр · {0} · {1} Гц": "Осциллограмма және спектр · {0} · {1} Гц",
+"Осциллограмма: найди период": "Осциллограмма: периодты тап",
+"Найди на осциллограмме два соседних одинаковых гребня. Расстояние между ними — период T. Частота f₀ = 1 / T.": "Осциллограммадан екі көрші бірдей шоқыны тап. Олардың арақашықтығы — T периоды. f₀ жиілігі = 1 / T.",
+"Осциллограмма: определи форму волны": "Осциллограмма: толқын пішінін анықта",
+"Гладкая волна без изломов — почти чистый тон. Острые углы и ступеньки говорят, что в звуке много гармоник. Сравни форму с образцами: синусоида, пила, квадрат, треугольник.": "Сынықсыз тегіс толқын — дерлік таза тон. Өткір бұрыштар мен баспалдақтар дыбыста гармоника көп екенін көрсетеді. Пішінді үлгілермен салыстыр: синусоида, ара, шаршы, үшбұрыш.",
+"Спектр: найди гармоники": "Спектр: гармоникаларды тап",
+"Пики спектра стоят на частотах f₀, 2f₀, 3f₀ и так далее. Чем выше пик, тем сильнее гармоника. Отсчитай пики выше 10 % от самого высокого.": "Спектр шыңдары f₀, 2f₀, 3f₀ және т.б. жиіліктерде тұрады. Шың биік болған сайын гармоника күшті. Ең биік шыңның 10 %-ынан жоғары шыңдарды санап шық.",
+"Спектр: сравни чётные и нечётные": "Спектр: жұп және тақ гармоникаларды салыстыр",
+"Сравни чётные гармоники (2, 4, 6, 8) с соседними нечётными. Если чётные почти исчезли и между пиками провалы, это признак трубы, закрытой с одного конца.": "Жұп гармоникаларды (2, 4, 6, 8) көрші тақтармен салыстыр. Жұптар дерлік жоғалып, шыңдар арасында ойпаттар болса, бұл бір ұшы жабық құбырдың белгісі.",
+"Спектрограмма: проверь устойчивость": "Спектрограмма: тұрақтылықты тексер",
+"На спектрограмме частота идёт вверх, время вправо. Ровная горизонтальная полоса — звук устойчив. Волна — вибрато, наклонная линия — скольжение, вертикальные штрихи — удар или щелчок.": "Спектрограммада жиілік жоғары, уақыт оңға қарай өседі. Тегіс көлденең жолақ — дыбыс тұрақты. Толқын — вибрато, көлбеу сызық — сырғу, тік штрихтар — соққы немесе сатыр.",
+"Вывод: что это за звук": "Қорытынды: бұл қандай дыбыс",
+"Свяжи форму волны и спектр с устройством источника. Струна и труба, открытая с обоих концов, дают все гармоники. Труба, закрытая с одного конца, даёт нечётные. Запиши вывод в раздел «Выводы».": "Толқын пішінін және спектрді дыбыс көзінің құрылысымен байланыстыр. Ішек және екі ұшы ашық құбыр барлық гармониканы береді. Бір ұшы жабық құбыр тақ гармоникаларды береді. Қорытындыңды «Қорытындылар» бөліміне жаз.",
+"T = {0} мс, значит f₀ = {1} Гц. Это нота {2}.": "T = {0} мс, демек f₀ = {1} Гц. Бұл — {2} нотасы.",
+"синусоида": "синусоида",
+"пила": "ара",
+"квадрат": "шаршы",
+"треугольник": "үшбұрыш",
+"Ближе всего форма «{0}»: сходство {1} %.": "Пішін «{0}» пішініне ең жақын: ұқсастық {1} %.",
+"Сильных гармоник: {0}. Самая сильная — {1}-я, {2} Гц.": "Күшті гармоникалар: {0}. Ең күштісі — {1}-ші, {2} Гц.",
+"Центр спектра низко: тембр тёмный, мягкий.": "Спектр орталығы төмен: тембр күңгірт, жұмсақ.",
+"Центр спектра посередине: тембр средний.": "Спектр орталығы ортада: тембр орташа.",
+"Центр спектра высоко: тембр яркий, звенящий.": "Спектр орталығы жоғары: тембр жарқын, сыңғырлаған.",
+"Нечётные {0} %, чётные {1} %.": "Тақтар {0} %, жұптар {1} %.",
+"Чётные гармоники почти пропали: они заметно слабее соседних нечётных.": "Жұп гармоникалар дерлік жоғалған: олар көрші тақтардан айтарлықтай әлсіз.",
+"Чётные и нечётные гармоники убывают плавно, без провалов.": "Жұп және тақ гармоникалар ойпатсыз, біркелкі кемиді.",
+"Частота держалась в пределах {0} ¢.": "Жиілік {0} ¢ шегінде тұрды.",
+"Звук устойчивый.": "Дыбыс тұрақты.",
+"Лёгкое вибрато или дрожание.": "Жеңіл вибрато немесе діріл.",
+"Заметное вибрато или скольжение.": "Байқалатын вибрато немесе сырғу.",
+"Для этого шага нужно измерение с микрофона.": "Бұл қадам үшін микрофонмен өлшеу керек.",
+"Почти чистый тон: в спектре одна гармоника. Так звучат камертон, свисток, стеклянная пробирка, флейта в нижнем регистре.": "Дерлік таза тон: спектрде бір ғана гармоника бар. Камертон, ысқырық, шыны сынауық, төменгі регистрдегі флейта осылай дыбыстайды.",
+"Чётных гармоник почти нет. Так звучит воздушный столб, закрытый с одного конца: кларнет, труба с закрытым концом.": "Жұп гармоникалар дерлік жоқ. Бір ұшы жабық ауа бағанасы осылай дыбыстайды: кларнет, ұшы жабық құбыр.",
+"Основной тон и несколько слабых гармоник: тембр мягкий. Похоже на флейту, свирель или пластиковую трубу.": "Негізгі тон және бірнеше әлсіз гармоника: тембр жұмсақ. Флейтаға, сырнайға немесе пластик құбырға ұқсайды.",
+"Много сильных гармоник: тембр яркий, звенящий. Так звучат струны и смычковые, а также трубы, открытые с обоих концов.": "Күшті гармоника көп: тембр жарқын, сыңғырлаған. Ішектер мен ыспалы аспаптар, сондай-ақ екі ұшы ашық құбырлар осылай дыбыстайды.",
+"Сильнее всего звучит не основной тон, а {0}-я гармоника: в тембре есть усиленная область. Так бывает у духовых с раструбом и у смычковых.": "Ең күшті дыбыстайтын — негізгі тон емес, {0}-ші гармоника: тембрде күшейтілген аймақ бар. Бұл раструбы бар үрмелі және ыспалы аспаптарда болады.",
+"Ближе всего к образцу «{0}» из раздела «Тембр и спектр»: сходство {1} %.": "Ең жақыны — «Тембр және спектр» бөліміндегі «{0}» үлгісі: ұқсастық {1} %.",
+"Это гипотеза. Проверь её: загрузи тембр в синтезатор и сравни на слух.": "Бұл — болжам. Оны тексер: тембрді синтезаторға жүктеп, құлақпен салыстыр.",
+"Бирюзовая полоса — твоё измерение, жёлтая метка — образец «{0}».": "Көгілдір жолақ — сенің өлшемің, сары белгі — «{0}» үлгісі."
 };
 
 /* =====================  язык (рус / қаз) и тема  ===================== */
@@ -2795,7 +2900,7 @@ async function checkCloud() {
 }
 function applyCloudState(cs, at, cLang) {
   const keep = { view: S.view, level: S.level, lang: S.lang, theme: S.theme };
-  const ns = deepMerge(structuredClone(DEFAULT), cs);
+  const ns = migrateSources(deepMerge(structuredClone(DEFAULT), cs));
   Object.keys(S).forEach(k => delete S[k]); Object.assign(S, ns, keep, { cloud: { at, uid: CL.uid || '' } });
   if (cLang && cLang !== LANG) convertDefaults(cLang, LANG);
   CL.lastJson = JSON.stringify(snapshotState());
@@ -2884,7 +2989,7 @@ async function uploadFiles(files) {
 async function syncFilesN(uid) {
   try { const n = (await dbop(() => CL.db.collection('works/' + uid + '/files').get())).size; await dbop(() => CL.db.doc('works/' + uid).update({ filesN: n })); if (uid === CL.uid && CL.mine) CL.mine = { ...CL.mine, filesN: n }; } catch (e) { }
 }
-async function uploadOne(file, row) {
+async function uploadOne(file, row, opts = {}) {
   const ext = (file.name.split('.').pop() || '').toLowerCase(), type = FILE_TYPES[ext];
   if (!type) throw { code: 'type' };
   let blob = file, name = file.name, btype = type;
@@ -2895,8 +3000,26 @@ async function uploadOne(file, row) {
   const fid = 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), fdoc = CL.db.doc('works/' + CL.uid + '/files/' + fid);
   row.total = n; row.done = 0; renderUp();
   for (let i = 0; i < n; i++) { await dbop(() => fdoc.collection('parts').doc(String(i)).set({ d: b64.slice(i * CHUNK, (i + 1) * CHUNK) })); row.done = i + 1; renderUp(); }
-  await dbop(() => fdoc.set({ name: name.slice(0, 160), type: btype, size: blob.size, parts: n, kind: guessKind(ext), note: '', at: new Date().toISOString() }));
+  await dbop(() => fdoc.set({ name: name.slice(0, 160), type: btype, size: blob.size, parts: n, kind: opts.kind || guessKind(ext), note: String(opts.note || '').slice(0, 160), at: new Date().toISOString() }));
+  return fid;
 }
+/* снимок измерения с микрофона → в материалы работы (вид «График, данные») */
+async function attachMicSnap(m, blob, name) {
+  if (!CL.db || !CL.canWrite || CL.teacher || !CL.ready || CL.pending) return false;
+  if (!CL.mine) { await syncNow(true); if (!CL.mine) return false; }
+  const fname = 'spektr-' + slug(name) + '-' + Math.round(m.f) + 'Hz.jpg', row = { name: fname, done: 0, total: 1 }; CL.up.push(row); renderUp();
+  try {
+    const fid = await uploadOne(new File([blob], fname, { type: 'image/jpeg' }), row, { kind: 'data', note: tk('Осциллограмма и спектр · {0} · {1} Гц', name, fmt(m.f, 1)) });
+    if (S.mics.includes(m)) { m.fid = fid; changed(); }
+    await syncFilesN(CL.uid); toast('Снимок добавлен в материалы работы.'); return true;
+  } catch (e) { toast(upErr(e)); return false; }
+  finally { CL.up = CL.up.filter(x => x !== row); renderUp(); }
+}
+function dropMicSnap(fid) {
+  const f = CL.files.find(x => x.id === fid);
+  if (f && CL.db && CL.canWrite && !CL.teacher) deleteFile(CL.uid, f).then(() => syncFilesN(CL.uid));
+}
+
 async function fetchParts(uid, fid, n) {
   const out = new Array(n); let next = 0;
   const worker = async () => { while (next < n) { const i = next++; const s = await dbop(() => CL.db.doc(`works/${uid}/files/${fid}/parts/${i}`).get()); const d = s.exists ? String(s.data().d || '') : ''; if (!/^[A-Za-z0-9+/=]*$/.test(d) || !d) throw new Error('part'); out[i] = d; } };
@@ -2987,6 +3110,7 @@ function renderMine() {
       <input type="text" data-note maxlength="160" placeholder="Подпись: что на файле?" value="${esc(f.note || '')}" aria-label="Подпись к файлу"></div>
     <div class="row"><button class="btn ghost sm" type="button" data-dl>Скачать</button><button class="x" type="button" data-del aria-label="Удалить файл">×</button></div></div>`).join('') : '<div class="empty">Файлов пока нет. Добавь фото установки, график или презентацию.</div>';
   CL.files.filter(f => IMG_TYPES.includes(f.type)).forEach(f => fillThumb(CL.uid, f, list));
+  if (typeof renderMicTable === 'function' && S.mics.some(m => m.fid)) renderMicTable();
 }
 async function fillThumb(uid, f, root) {
   try {
@@ -3231,37 +3355,242 @@ V.timbre = { enter() { updTimbre(); }, frame: drawTimbre, resize: dirty };
 
 /* =====================  МИКРОФОН  ===================== */
 const MH = { hist: [], last: null, tick: 0, msg: '' };
+
+/* --- снимки измерений: картинка хранится на устройстве, а если включено облако, ещё и в материалах работы --- */
+const MICIMG = 'lz-sound-lab-micimg';
+const micImgs = {
+  all() { try { return JSON.parse(localStorage.getItem(MICIMG) || '{}') || {}; } catch (e) { return {}; } },
+  put(id, url) {
+    const o = micImgs.all(), keep = new Set(S.mics.map(m => m.id)); Object.keys(o).forEach(k => { if (!keep.has(k)) delete o[k]; }); o[id] = url;
+    try { localStorage.setItem(MICIMG, JSON.stringify(o)); return true; } catch (e) { return false; }
+  },
+  del(id) { const o = micImgs.all(); if (id in o) { delete o[id]; try { localStorage.setItem(MICIMG, JSON.stringify(o)); } catch (e) { } } }
+};
+function dataURLtoBlob(u) {
+  const m = /^data:([^;,]+);base64,(.*)$/.exec(u); if (!m) return null; const bin = atob(m[2]), a = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return new Blob([a], { type: m[1] });
+}
+async function saveBlobAs(name, blob) {
+  if (typeof CL !== 'undefined' && CL.dl) { try { await CL.dl.save({ filename: name, data: blob }); return; } catch (e) { if (e && e.code === 'declined') return; } }
+  const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = name; a.style.display = 'none'; document.body.appendChild(a); a.click();
+  setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 4000);
+}
+const slug = s => String(s || '').toLowerCase().replace(/[^a-z0-9а-яёәіңғүұқөһ]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'zapis';
+
+/* --- спектрограмма: время идёт вправо, частота вверх (0–4000 Гц), яркость = сила --- */
+const GR = { cols: 260, rows: 110, off: null, img: null, lut: null, n: 0 };
+function grInit() {
+  GR.off = document.createElement('canvas'); GR.off.width = GR.cols; GR.off.height = GR.rows; GR.img = new ImageData(GR.cols, GR.rows);
+  const st = [[0, 7, 21, 25], [.28, 14, 90, 99], [.55, 47, 191, 158], [.8, 242, 210, 74], [1, 255, 255, 255]];
+  GR.lut = new Uint8ClampedArray(256 * 3);
+  for (let i = 0; i < 256; i++) {
+    const v = i / 255; let k = 1; while (k < st.length - 1 && v > st[k][0]) k++;
+    const a = st[k - 1], b = st[k], u = (v - a[0]) / (b[0] - a[0]); for (let c = 0; c < 3; c++) GR.lut[i * 3 + c] = a[c + 1] + (b[c + 1] - a[c + 1]) * u;
+  }
+  grClear();
+}
+function grClear() {
+  const d = GR.img.data; for (let i = 0; i < d.length; i += 4) { d[i] = 7; d[i + 1] = 21; d[i + 2] = 25; d[i + 3] = 255; }
+  GR.off.getContext('2d').putImageData(GR.img, 0, 0); GR.n = 0;
+}
+function grPush() {
+  const { freq, sr, an } = Mic, bin = sr / an.fftSize, W = GR.cols, H = GR.rows, d = GR.img.data;
+  for (let r = 0; r < H; r++) { const o = r * W * 4; d.copyWithin(o, o + 4, o + W * 4); }
+  for (let r = 0; r < H; r++) {
+    const k0 = Math.max(1, Math.floor((H - 1 - r) / H * 4000 / bin)), k1 = Math.max(k0, Math.ceil((H - r) / H * 4000 / bin));
+    let m = -200; for (let k = k0; k <= k1; k++) if (freq[k] > m) m = freq[k];
+    const i = Math.round(clamp((m + 100) / 70, 0, 1) * 255) * 3, p = (r * W + W - 1) * 4;
+    d[p] = GR.lut[i]; d[p + 1] = GR.lut[i + 1]; d[p + 2] = GR.lut[i + 2]; d[p + 3] = 255;
+  }
+  GR.off.getContext('2d').putImageData(GR.img, 0, 0); GR.n++;
+}
+function drawGram(c, r) {
+  const { x, w, h } = c;
+  x.fillStyle = css('--scope-bg'); x.fillRect(0, 0, w, h);
+  if (!GR.off) return;
+  x.imageSmoothingEnabled = true; x.drawImage(GR.off, 0, 0, w, h);
+  x.font = '10px "IBM Plex Mono",monospace'; x.textBaseline = 'middle'; x.textAlign = 'left'; x.lineWidth = 1;
+  for (let hz = 1000; hz < 4000; hz += 1000) { const py = Math.round(h * (1 - hz / 4000)) + .5; x.strokeStyle = 'rgba(255,255,255,.16)'; x.beginPath(); x.moveTo(0, py); x.lineTo(w, py); x.stroke(); x.fillStyle = css('--scope-txt'); x.fillText((hz / 1000) + 'к', 5, py - 7); }
+  if (r && r.f && Mic.running) {
+    x.setLineDash([4, 4]); x.strokeStyle = css('--scope-b'); x.fillStyle = css('--scope-b'); x.textAlign = 'right';
+    for (let k = 1; k <= 8 && k * r.f < 4000; k++) { const py = Math.round(h * (1 - k * r.f / 4000)) + .5; x.beginPath(); x.moveTo(0, py); x.lineTo(w, py); x.stroke(); x.fillText(String(k), w - 5, py - 7); }
+    x.setLineDash([]);
+  }
+  if (!GR.n) { x.textAlign = 'center'; x.fillStyle = css('--scope-txt'); x.font = '13px Onest,system-ui,sans-serif'; x.fillText(trText(Mic.running ? 'Жду звук…' : 'Включи микрофон и сыграй ноту'), w / 2, h / 2); }
+}
+
+/* --- измерение и алгоритм анализа --- */
+function micRecord() {
+  if (MH.hist.length < 5) return null;
+  const fs = MH.hist.map(x => x.f).sort((a, b) => a - b), f = fs[fs.length >> 1];
+  const harm = Array.from({ length: 8 }, (_, k) => +(MH.hist.reduce((s, x) => s + x.harm[k], 0) / MH.hist.length).toFixed(2));
+  return { f: +f.toFixed(1), harm, dev: Math.round(1200 * Math.log2(fs[fs.length - 1] / fs[0])), note: noteOf(f).short };
+}
+const SHAPES = [
+  { id: 'sin', n: 'синусоида', a: [1, 0, 0, 0, 0, 0, 0, 0] },
+  { id: 'saw', n: 'пила', a: Array.from({ length: 8 }, (_, i) => 1 / (i + 1)) },
+  { id: 'sq', n: 'квадрат', a: Array.from({ length: 8 }, (_, i) => (i + 1) % 2 ? 1 / (i + 1) : 0) },
+  { id: 'tri', n: 'треугольник', a: Array.from({ length: 8 }, (_, i) => (i + 1) % 2 ? 1 / ((i + 1) * (i + 1)) : 0) }
+];
+function cosSim(a, b) {
+  let d = 0, na = 0, nb = 0; for (let i = 0; i < 8; i++) { d += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+  return na && nb ? d / Math.sqrt(na * nb) : 0;
+}
+function analyzeSound(m) {
+  const h = m.harm, mx = Math.max(...h) || 1, pk = h.indexOf(mx);
+  const strong = h.filter(a => a > .1).length;
+  let odd = 0, even = 0, num = 0, den = 0; h.forEach((a, i) => { if (i % 2) even += a * a; else odd += a * a; num += (i + 1) * a * a; den += a * a; });
+  const oddShare = odd / (odd + even || 1), centroid = num / (den || 1);
+  const shapes = SHAPES.map(s => ({ s, sim: cosSim(h, s.a) })).sort((a, b) => b.sim - a.sim);
+  const pres = PRESETS.map(p => ({ p, sim: cosSim(h, p.a.slice(0, 8)) })).sort((a, b) => b.sim - a.sim);
+  // провалы на чётных гармониках: чётная сравнивается со средним двух соседних нечётных (у трубы, закрытой с одного конца, они почти пропадают)
+  const dips = [1, 3, 5].map(i => { const nb = (h[i - 1] + h[i + 1]) / 2; return nb > .05 ? h[i] / nb : null; }).filter(v => v != null), dip = dips.length ? dips.reduce((a, b) => a + b, 0) / dips.length : 1;
+  const kind = strong <= 1 && pk === 0 ? 'pure' : dip < .35 && strong >= 2 ? 'odd' : pk >= 1 ? 'formant' : strong >= 4 ? 'rich' : 'mid';
+  return { T: 1000 / m.f, strong, pk, oddShare, dip, centroid, shapes, pres, kind, bright: centroid < 1.6 ? 0 : centroid < 2.6 ? 1 : 2 };
+}
+const ALGO_STEPS = [
+  ['Осциллограмма: найди период', 'Найди на осциллограмме два соседних одинаковых гребня. Расстояние между ними — период T. Частота f₀ = 1 / T.'],
+  ['Осциллограмма: определи форму волны', 'Гладкая волна без изломов — почти чистый тон. Острые углы и ступеньки говорят, что в звуке много гармоник. Сравни форму с образцами: синусоида, пила, квадрат, треугольник.'],
+  ['Спектр: найди гармоники', 'Пики спектра стоят на частотах f₀, 2f₀, 3f₀ и так далее. Чем выше пик, тем сильнее гармоника. Отсчитай пики выше 10 % от самого высокого.'],
+  ['Спектр: сравни чётные и нечётные', 'Сравни чётные гармоники (2, 4, 6, 8) с соседними нечётными. Если чётные почти исчезли и между пиками провалы, это признак трубы, закрытой с одного конца.'],
+  ['Спектрограмма: проверь устойчивость', 'На спектрограмме частота идёт вверх, время вправо. Ровная горизонтальная полоса — звук устойчив. Волна — вибрато, наклонная линия — скольжение, вертикальные штрихи — удар или щелчок.'],
+  ['Вывод: что это за звук', 'Свяжи форму волны и спектр с устройством источника. Струна и труба, открытая с обоих концов, дают все гармоники. Труба, закрытая с одного конца, даёт нечётные. Запиши вывод в раздел «Выводы».']
+];
+const KIND_TXT = {
+  pure: 'Почти чистый тон: в спектре одна гармоника. Так звучат камертон, свисток, стеклянная пробирка, флейта в нижнем регистре.',
+  odd: 'Чётных гармоник почти нет. Так звучит воздушный столб, закрытый с одного конца: кларнет, труба с закрытым концом.',
+  mid: 'Основной тон и несколько слабых гармоник: тембр мягкий. Похоже на флейту, свирель или пластиковую трубу.',
+  rich: 'Много сильных гармоник: тембр яркий, звенящий. Так звучат струны и смычковые, а также трубы, открытые с обоих концов.'
+};
+const AL = { sel: 'live', sig: '' };
+function algoSource() {
+  if (AL.sel === 'live') { const r = micRecord(); if (r) return { rec: r, live: true }; if (S.mics.length) return { rec: S.mics[S.mics.length - 1], last: true }; return null; }
+  const m = S.mics.find(x => x.id === AL.sel); return m ? { rec: m } : null;
+}
+function syncAlgoSrc() {
+  const sel = $('#algoSrc'); if (!sel) return;
+  const sig = S.mics.map(m => m.id + m.name + m.f).join('|');
+  if (sig !== AL.sig) {
+    AL.sig = sig; if (AL.sel !== 'live' && !S.mics.some(m => m.id === AL.sel)) AL.sel = 'live';
+    sel.innerHTML = `<option value="live">Текущий звук с микрофона</option>` + S.mics.map(m => `<option value="${esc(m.id)}" data-notr>${esc(m.name)} · ${fmt(m.f, 1)} Гц</option>`).join('');
+  }
+  sel.value = AL.sel;
+}
+function renderAlgo() {
+  const list = $('#algoList'); if (!list) return;
+  syncAlgoSrc();
+  const src = algoSource(), rec = src && src.rec, A = rec && analyzeSound(rec);
+  $('#algoNote').textContent = !src ? 'Включи микрофон и сыграй ноту или выбери сохранённую запись. Ниже приложение подставит результаты шагов.'
+    : src.last ? 'Микрофон молчит, поэтому показана последняя сохранённая запись.' : src.live ? 'Разбирается звук, который слышит микрофон прямо сейчас.' : 'Разбирается сохранённая запись.';
+  const res = [];
+  if (A) {
+    const s0 = A.shapes[0], p0 = A.pres[0].p, dev = rec.dev;
+    res[0] = [`T = ${fmt(A.T, 2)} мс, значит f₀ = ${fmt(rec.f, 1)} Гц. Это нота ${rec.note}.`];
+    res[1] = [`Ближе всего форма «${s0.s.n}»: сходство ${Math.round(s0.sim * 100)} %.`];
+    res[2] = [`Сильных гармоник: ${A.strong}. Самая сильная — ${A.pk + 1}-я, ${fmt(rec.f * (A.pk + 1), 0)} Гц.`, A.bright === 0 ? 'Центр спектра низко: тембр тёмный, мягкий.' : A.bright === 1 ? 'Центр спектра посередине: тембр средний.' : 'Центр спектра высоко: тембр яркий, звенящий.'];
+    res[3] = [`Нечётные ${Math.round(A.oddShare * 100)} %, чётные ${100 - Math.round(A.oddShare * 100)} %.`, A.dip < .35 ? 'Чётные гармоники почти пропали: они заметно слабее соседних нечётных.' : 'Чётные и нечётные гармоники убывают плавно, без провалов.'];
+    res[4] = Number.isFinite(dev) ? [`Частота держалась в пределах ${dev} ¢.`, dev <= 15 ? 'Звук устойчивый.' : dev <= 50 ? 'Лёгкое вибрато или дрожание.' : 'Заметное вибрато или скольжение.'] : ['Для этого шага нужно измерение с микрофона.'];
+    res[5] = [A.kind === 'formant' ? `Сильнее всего звучит не основной тон, а ${A.pk + 1}-я гармоника: в тембре есть усиленная область. Так бывает у духовых с раструбом и у смычковых.` : KIND_TXT[A.kind],
+    `Ближе всего к образцу «${p0.n}» из раздела «Тембр и спектр»: сходство ${Math.round(A.pres[0].sim * 100)} %.`, 'Это гипотеза. Проверь её: загрузи тембр в синтезатор и сравни на слух.'];
+  }
+  list.innerHTML = ALGO_STEPS.map((s, i) => `<li><h3>${s[0]}</h3><p class="hint">${s[1]}</p>${A ? res[i].map(t => `<p class="al-r">${esc(t)}</p>`).join('') : ''}</li>`).join('');
+  const cmp = $('#algoCmp'); cmp.hidden = !A;
+  if (A) {
+    const p0 = A.pres[0], pm = Math.max(...p0.p.a.slice(0, 8)) || 1;
+    $('#algoCmpRows').innerHTML = rec.harm.map((a, k) => `<div class="cmp-row"><span>${k ? (k + 1) + '·f₀' : 'f₀'}</span><div class="cmp-bar"><i style="width:${Math.round(a * 100)}%"></i><b style="left:${Math.round(p0.p.a[k] / pm * 100)}%"></b></div><output>${Math.round(a * 100)}%</output></div>`).join('');
+    $('#algoLegend').textContent = `Бирюзовая полоса — твоё измерение, жёлтая метка — образец «${p0.p.n}».`;
+  }
+}
+
+/* --- снимок трёх графиков одной картинкой --- */
+function micSnapCanvas(rec, name) {
+  const cv = [$('#micWave'), $('#micSpec'), $('#micGram')]; if (cv.some(c => !c.width || !c.height)) return null;
+  const caps = [trText('ОСЦИЛЛОГРАММА'), trText('СПЕКТР 0–4000 ГЦ'), trText('СПЕКТРОГРАММА 0–4000 ГЦ')];
+  const W = 900, P = 20, IW = W - 2 * P, HEAD = 78, CAP = 24, GAP = 10, hs = cv.map(c => Math.round(IW * c.height / c.width));
+  const H = HEAD + hs.reduce((s, h) => s + CAP + h + GAP, 0) + P - GAP;
+  const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
+  x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, W, H); x.textBaseline = 'top';
+  x.fillStyle = '#0F2229'; x.font = '600 24px Onest,system-ui,sans-serif'; x.fillText(String(name).slice(0, 60), P, 16);
+  x.fillStyle = '#485E67'; x.font = '15px "IBM Plex Mono",monospace';
+  x.fillText(`f₀ = ${fmt(rec.f, 1)} ${trText('Гц')} · ${rec.note} · T = ${fmt(1000 / rec.f, 2)} ${trText('мс')} · ${todayISO()}`, P, 50);
+  let y = HEAD;
+  cv.forEach((el, i) => { x.fillStyle = '#485E67'; x.font = '500 12px "IBM Plex Mono",monospace'; x.fillText(caps[i], P, y + 5); y += CAP; x.drawImage(el, P, y, IW, hs[i]); y += hs[i] + GAP; });
+  return c;
+}
+function toBlobAsync(c, type, q) { return new Promise(res => c.toBlob(res, type, q)); }
+
+/* --- просмотр снимка --- */
+async function openMicPic(m) {
+  const dlg = $('#micDlg'), img = $('#micDlgImg'); if (!dlg) return;
+  $('#micDlgT').textContent = m.name; $('#micDlgSub').textContent = `${fmt(m.f, 1)} Гц · ${m.note} · ${m.date}`;
+  img.removeAttribute('src'); dlg.dataset.id = m.id; if (!dlg.open) dlg.showModal();
+  const url = await micPicURL(m); if (dlg.dataset.id === m.id && url) img.src = url;
+}
+async function micPicURL(m) {
+  const loc = micImgs.all()[m.id]; if (loc) return loc;
+  if (m.fid && typeof CL !== 'undefined' && CL.db) { const f = CL.files.find(x => x.id === m.fid); if (f) { try { return await imageURL(CL.uid, f); } catch (e) { } } }
+  return null;
+}
+async function fillMicThumbs() {
+  const loc = micImgs.all();
+  for (const b of $$('#micTable [data-pic]')) {
+    const m = S.mics.find(x => x.id === b.closest('tr').dataset.id); if (!m || loc[m.id]) continue;
+    micPicURL(m).then(u => { if (u && b.isConnected) { const im = b.querySelector('img'); if (im) im.src = u; } });
+  }
+}
+
 function micUI() {
   const on = Mic.running; $('#micToggle').textContent = on ? 'Выключить микрофон' : 'Включить микрофон';
   $('#micToggle').classList.toggle('ghost', on);
 }
 function initMic() {
+  grInit();
   $('#micToggle').addEventListener('click', async () => {
     const msg = $('#micMsg');
-    if (Mic.running) { micStop(); MH.hist = []; MH.last = null; micUI(); renderMicReads(); dirty(); return; }
-    try { stopAllSound(); await micStart(); msg.hidden = true; MH.hist = []; micUI(); }
+    if (Mic.running) { micStop(); MH.hist = []; MH.last = null; micUI(); renderMicReads(); renderAlgo(); dirty(); return; }
+    try { stopAllSound(); await micStart(); msg.hidden = true; MH.hist = []; grClear(); micUI(); }
     catch (e) { msg.hidden = false; msg.innerHTML = `<div>${esc(micErrorText(e))}</div>`; }
     dirty();
   });
-  $('#micSave').addEventListener('click', () => {
-    if (MH.hist.length < 5) return;
-    const fs = MH.hist.map(x => x.f).sort((a, b) => a - b), f = fs[fs.length >> 1];
-    const harm = Array.from({ length: 8 }, (_, k) => +(MH.hist.reduce((s, x) => s + x.harm[k], 0) / MH.hist.length).toFixed(2));
-    const nt = noteOf(f), name = $('#micName').value.trim() || 'Без названия';
-    S.mics.push({ id: uid(), name, f: +f.toFixed(1), note: nt.short, harm, date: todayISO() }); renderMicTable(); changed(); toast('Спектр сохранён в «Мои спектры инструментов».');
+  $('#micSave').addEventListener('click', async () => {
+    const rec = micRecord(); if (!rec) return;
+    const name = $('#micName').value.trim() || 'Без названия';
+    const snap = micSnapCanvas(rec, name);            // снимок берём сразу: графики продолжают бежать
+    const m = { id: uid(), name, f: rec.f, note: rec.note, harm: rec.harm, dev: rec.dev, date: todayISO() };
+    S.mics.push(m); AL.sel = m.id; renderMicTable(); renderAlgo(); changed(); toast('Спектр сохранён в «Мои спектры инструментов».');
+    if (!snap) return;
+    const blob = await toBlobAsync(snap, 'image/jpeg', .82); if (!blob) return;
+    let ok = false; try { ok = micImgs.put(m.id, await readDataURL(blob)); } catch (e) { }
+    renderMicTable();
+    const up = await attachMicSnap(m, blob, name);
+    if (!ok && !up && !(typeof CL !== 'undefined' && CL.db)) toast('Снимок не удалось сохранить: память браузера заполнена.');
   });
   $('#micTable tbody').addEventListener('click', e => {
     const tr = e.target.closest('tr'); if (!tr) return; const m = S.mics.find(x => x.id === tr.dataset.id); if (!m) return;
-    if (e.target.closest('[data-del]')) { S.mics = S.mics.filter(x => x !== m); renderMicTable(); changed(); }
+    if (e.target.closest('[data-del]')) {
+      S.mics = S.mics.filter(x => x !== m); micImgs.del(m.id); if (m.fid) dropMicSnap(m.fid);
+      renderMicTable(); renderAlgo(); changed();
+    }
     if (e.target.closest('[data-syn]')) { setTimbre(m.f, m.harm, null); go('timbre'); toast('Тембр загружен из твоего измерения. Нажми «Слушать тон».'); }
+    if (e.target.closest('[data-pic]')) openMicPic(m);
+    if (e.target.closest('[data-alg]')) { AL.sel = m.id; renderAlgo(); $('#algoSec').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); }
   });
-  renderMicReads(); renderMicTable();
+  $('#algoSrc').addEventListener('change', e => { AL.sel = e.target.value; renderAlgo(); });
+  $('#micDlgX').addEventListener('click', () => $('#micDlg').close());
+  $('#micDlg').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+  $('#micDlgDl').addEventListener('click', async () => {
+    const m = S.mics.find(x => x.id === $('#micDlg').dataset.id); if (!m) return;
+    const u = await micPicURL(m), b = u && dataURLtoBlob(u); if (b) saveBlobAs(`spektr-${slug(m.name)}-${Math.round(m.f)}Hz.jpg`, b);
+  });
+  renderMicReads(); renderMicTable(); renderAlgo();
 }
 function renderMicTable() {
-  const tb = $('#micTable tbody');
+  const tb = $('#micTable tbody'), loc = micImgs.all();
   tb.innerHTML = S.mics.length ? S.mics.map(m => { const strong = m.harm.filter(a => a > .1).length, odd = m.harm.reduce((s, a, i) => s + (i % 2 === 0 ? a * a : 0), 0), even = m.harm.reduce((s, a, i) => s + (i % 2 ? a * a : 0), 0);
-    return `<tr data-id="${m.id}"><td data-notr>${esc(m.name)}</td><td class="num">${fmt(m.f, 1)}</td><td>${esc(m.note)}</td><td class="num">${strong}</td><td class="num">${fmt(odd / (odd + even || 1) * 100, 0)}</td><td style="text-align:right"><button class="btn ghost sm" type="button" data-syn>В синтезатор</button> <button class="x" type="button" data-del aria-label="Удалить">×</button></td></tr>`; }).join('')
+    const pic = loc[m.id] || m.fid ? `<button class="mthumb" type="button" data-pic aria-label="Показать снимок"><img alt=""${loc[m.id] ? ` src="${loc[m.id]}"` : ''}></button>` : '';
+    return `<tr data-id="${m.id}"><td><span class="mic-nm">${pic}<span data-notr>${esc(m.name)}</span></span></td><td class="num">${fmt(m.f, 1)}</td><td>${esc(m.note)}</td><td class="num">${strong}</td><td class="num">${fmt(odd / (odd + even || 1) * 100, 0)}</td><td style="text-align:right"><button class="btn ghost sm" type="button" data-alg>Разбор</button> <button class="btn ghost sm" type="button" data-syn>В синтезатор</button> <button class="x" type="button" data-del aria-label="Удалить">×</button></td></tr>`; }).join('')
     : '<tr><td colspan="6" class="empty">Пока пусто. Включи микрофон, сыграй ноту и нажми «Сохранить измерение».</td></tr>';
+  fillMicThumbs();
 }
 function renderMicReads() {
   const r = MH.last, nt = r && r.f ? noteOf(r.f) : null;
@@ -3273,10 +3602,10 @@ function renderMicReads() {
   $('#micSave').disabled = MH.hist.length < 5;
 }
 function drawMic() {
-  const wv = fit($('#micWave')), sp = fit($('#micSpec'));
+  const wv = fit($('#micWave')), sp = fit($('#micSpec')), gm = fit($('#micGram'));
   scopeBase(wv.x, wv.w, wv.h, 10, 4); scopeBase(sp.x, sp.w, sp.h, 8, 4);
   const msg = (c, t) => { c.x.fillStyle = css('--scope-txt'); c.x.font = '13px Onest,system-ui,sans-serif'; c.x.textAlign = 'center'; c.x.textBaseline = 'middle'; c.x.fillText(t, c.w / 2, c.h / 2); };
-  if (!Mic.running) { msg(wv, trText('Микрофон выключен')); msg(sp, trText('Включи микрофон и сыграй ноту')); return; }
+  if (!Mic.running) { msg(wv, trText('Микрофон выключен')); msg(sp, trText('Включи микрофон и сыграй ноту')); drawGram(gm, null); return; }
   MH.tick++;
   if (MH.tick % 3 === 0) {
     const r = micAnalyze();
@@ -3284,6 +3613,8 @@ function drawMic() {
     else { MH.last = { f: null, clarity: 0, harm: null }; if (r.rms < 0.006) MH.hist = []; }
     renderMicReads();
   }
+  if (MH.tick % 2 === 0) grPush();
+  if (MH.tick % 15 === 0 && AL.sel === 'live') renderAlgo();
   const { time, freq, sr, an } = Mic, r = MH.last;
   { const { x, w, h } = wv; const n = r && r.f ? Math.min(4096, Math.round(4 * sr / r.f)) : 1024, off = time.length - n; let mx = 0.05; for (let i = off; i < time.length; i++) mx = Math.max(mx, Math.abs(time[i]));
     x.strokeStyle = css('--scope-axis'); x.lineWidth = 1; x.beginPath(); x.moveTo(0, h / 2 + .5); x.lineTo(w, h / 2 + .5); x.stroke();
@@ -3295,8 +3626,9 @@ function drawMic() {
     x.font = '10px "IBM Plex Mono",monospace'; x.textBaseline = 'top'; x.fillStyle = css('--scope-txt'); x.textAlign = 'center';
     for (let hz = 0; hz <= 4000; hz += 500) { const px = hz / 4000 * w; x.fillText(hz === 0 ? '0' : hz >= 1000 ? (hz / 1000) + 'к' : hz, clamp(px, 8, w - 10), base + 5); }
     if (r && r.f) { x.setLineDash([4, 4]); x.strokeStyle = css('--scope-b'); x.lineWidth = 1; for (let k = 1; k <= 8 && k * r.f < 4000; k++) { const px = k * r.f / 4000 * w; x.beginPath(); x.moveTo(px, top); x.lineTo(px, base); x.stroke(); x.fillStyle = css('--scope-b'); x.textBaseline = 'bottom'; x.fillText(String(k), px, top + 10); } x.setLineDash([]); } }
+  drawGram(gm, r);
 }
-V.mic = { enter() { micUI(); renderMicReads(); renderMicTable(); }, leave() { if (Mic.running) { micStop(); micUI(); } }, frame: drawMic, get live() { return Mic.running; } };
+V.mic = { enter() { micUI(); renderMicReads(); renderMicTable(); renderAlgo(); }, leave() { if (Mic.running) { micStop(); micUI(); } }, frame: drawMic, get live() { return Mic.running; } };
 
 /* =====================  ЖУРНАЛ  ===================== */
 function fmtSource(s) {
